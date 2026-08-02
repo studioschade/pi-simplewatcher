@@ -3,6 +3,18 @@
 All notable changes to this project will be documented here. This project uses
 Semantic Versioning.
 
+## README hero (2026-08-02)
+
+- **New `assets/readme/hero.svg`** — the real differentiator (injects new file
+  content into the live session the moment it lands, vs. a manual inbox check
+  where a message sits unread until the next human prompt) as a before/after
+  timeline, not a mockup screenshot. Same layout system and near-black canvas
+  as the simplesay/simplecontext heroes so the studioschade repos read as
+  siblings; distinct teal→blue accent for the watcher/monitor identity.
+- Verified by rendering (inkscape PNG, 1200px) and visual inspection; wired
+  into the top of the README as a centered hero block. Approved by Allen
+  2026-08-02 before push.
+
 ## [0.2.2] - 2026-08-02
 
 ### Changed
