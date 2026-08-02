@@ -96,12 +96,12 @@ For a manual source checkout, symlink the entrypoint into pi's extension
 auto-discovery path so the repo stays the single source of truth:
 
 ```bash
-ln -s /path/to/simplewatcher/src/index.ts ~/.pi/agent/extensions/simplewatcher.ts   # global
+ln -s /path/to/pi-simplewatcher/src/index.ts ~/.pi/agent/extensions/simplewatcher.ts   # global
 # or
-ln -s /path/to/simplewatcher/src/index.ts .pi/extensions/simplewatcher.ts           # project-local
+ln -s /path/to/pi-simplewatcher/src/index.ts .pi/extensions/simplewatcher.ts           # project-local
 ```
 
-To try it ad hoc without installing: `pi -e /path/to/simplewatcher/src/index.ts`
+To try it ad hoc without installing: `pi -e /path/to/pi-simplewatcher/src/index.ts`
 
 ## `AGENTS.md` vs watcher persistence
 
