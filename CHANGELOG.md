@@ -3,6 +3,11 @@
 All notable changes to this project will be documented here. This project uses
 Semantic Versioning.
 
+## [0.2.2] - 2026-08-02
+
+### Changed
+- GitHub repository renamed to `studioschade/pi-simplewatcher`; package metadata and install docs updated.
+
 ## [0.2.1] - 2026-08-02
 
 ### Changed

@@ -77,9 +77,9 @@ pi install npm:pi-simplewatcher
 Install from GitHub:
 
 ```bash
-pi install git:github.com/studioschade/simplewatcher      # global
+pi install git:github.com/studioschade/pi-simplewatcher      # global
 # or
-pi install git:github.com/studioschade/simplewatcher -l   # project-local
+pi install git:github.com/studioschade/pi-simplewatcher -l   # project-local
 ```
 
 Update/remove later, matching the source you installed from:
@@ -88,8 +88,8 @@ Update/remove later, matching the source you installed from:
 pi update npm:pi-simplewatcher
 pi remove npm:pi-simplewatcher
 # or, for a git install:
-pi update git:github.com/studioschade/simplewatcher
-pi remove git:github.com/studioschade/simplewatcher
+pi update git:github.com/studioschade/pi-simplewatcher
+pi remove git:github.com/studioschade/pi-simplewatcher
 ```
 
 For a manual source checkout, symlink the entrypoint into pi's extension
