@@ -3,6 +3,11 @@
 All notable changes to this project will be documented here. This project uses
 Semantic Versioning.
 
+## [0.2.1] - 2026-08-02
+
+### Changed
+- Renamed the npm package to `pi-simplewatcher`; npm rejected `simplewatcher` as too similar to the existing `simple-watcher` package. GitHub repo stays `studioschade/simplewatcher`.
+
 ## [0.2.0] - 2026-08-02
 
 ### Added

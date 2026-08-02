@@ -68,6 +68,12 @@ Examples:
 This repo follows the pi package layout: `package.json` is present and
 `pi.extensions` points at `./src`, with the entrypoint at `src/index.ts`.
 
+Install from npm once published:
+
+```bash
+pi install npm:pi-simplewatcher
+```
+
 Install from GitHub:
 
 ```bash
@@ -76,11 +82,14 @@ pi install git:github.com/studioschade/simplewatcher      # global
 pi install git:github.com/studioschade/simplewatcher -l   # project-local
 ```
 
-Update/remove later:
+Update/remove later, matching the source you installed from:
 
 ```bash
-pi update simplewatcher
-pi remove simplewatcher
+pi update npm:pi-simplewatcher
+pi remove npm:pi-simplewatcher
+# or, for a git install:
+pi update git:github.com/studioschade/simplewatcher
+pi remove git:github.com/studioschade/simplewatcher
 ```
 
 For a manual source checkout, symlink the entrypoint into pi's extension
