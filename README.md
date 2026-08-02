@@ -64,8 +64,23 @@ Examples:
 This repo follows the pi package layout: `package.json` is present and
 `pi.extensions` points at `./src`, with the entrypoint at `src/index.ts`.
 
-For a manual install, symlink the entrypoint into pi's extension auto-discovery
-path so the repo stays the single source of truth:
+Install from GitHub:
+
+```bash
+pi install git:github.com/studioschade/simplewatcher      # global
+# or
+pi install git:github.com/studioschade/simplewatcher -l   # project-local
+```
+
+Update/remove later:
+
+```bash
+pi update simplewatcher
+pi remove simplewatcher
+```
+
+For a manual source checkout, symlink the entrypoint into pi's extension
+auto-discovery path so the repo stays the single source of truth:
 
 ```bash
 ln -s /path/to/simplewatcher/src/index.ts ~/.pi/agent/extensions/simplewatcher.ts   # global
@@ -137,6 +152,12 @@ agent’s own guardrails.
 Source of truth for this project is `src/index.ts`. Keep the deployed pi
 extension entrypoint pointed at that file (symlink preferred) when changing
 behavior.
+
+Run the self-test suite:
+
+```bash
+npm test
+```
 
 Useful manual smoke checks:
 

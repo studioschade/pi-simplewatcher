@@ -15,6 +15,9 @@
   "pi": {
     "extensions": ["./src"]
   },
+  "scripts": {
+    "test": "node --experimental-strip-types test/simplewatcher.test.mjs"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   }
