@@ -19,16 +19,18 @@ function check(name, ok, detail = '') {
 function harness() {
   const injected = [];
   const handlers = {};
+  const commands = {};
+  const notices = [];
   const pi = {
     sendMessage(msg, opts) {
       const m = /\[simplewatcher: (.+?) changed\]/.exec(msg.content);
       injected.push({ label: m ? m[1] : '?', triggerTurn: !!opts.triggerTurn, content: msg.content });
     },
     on(evt, fn) { handlers[evt] = fn; },
-    registerCommand() {},
+    registerCommand(name, def) { commands[name] = def; },
   };
-  const ctx = { ui: { notify() {} } };
-  return { injected, handlers, pi, ctx };
+  const ctx = { ui: { notify(m, k) { notices.push({ m, k }); } } };
+  return { injected, handlers, commands, notices, pi, ctx };
 }
 
 async function scenario({ agent, env = {}, files = {}, liveFile = null }) {
@@ -86,6 +88,45 @@ const baseFiles = { 'a.md': 'pending a\n', 'b.md': 'pending b\n', 'c.md': 'pendi
   const r = await scenario({ agent: 'fabricant', files: { 'big.md': 'x'.repeat(200_000) } });
   const one = r.boot[0]?.content ?? '';
   check('payload cap truncates large files', r.boot.length === 1 && one.includes('[simplewatcher: truncated big.md') && Buffer.byteLength(one, 'utf8') < 40_000, `${Buffer.byteLength(one, 'utf8')} bytes`);
+}
+
+{
+  const savedCwd = process.cwd();
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'simplewatcher-project-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'simplewatcher-home-'));
+  const inbox = path.join(home, 'Agents/_bus/inbox/fabricant');
+  fs.mkdirSync(inbox, { recursive: true });
+  fs.writeFileSync(path.join(inbox, 'pending.md'), 'persisted pending\n');
+
+  const savedHome = process.env.HOME;
+  process.env.HOME = home;
+  process.env.SIMPLEWATCHER_AGENT = 'fabricant';
+  process.chdir(project);
+  try {
+    const first = harness();
+    ext(first.pi);
+    await first.commands.simplewatcher.handler('~/Agents/_bus/inbox/fabricant --active --persist --global', first.ctx);
+    const cfgPath = path.join(home, '.pi/agent/simplewatcher.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    check('--persist --global writes global config', cfg.watches?.some((w) => w.path === '~/Agents/_bus/inbox/fabricant' && w.mode === 'active' && w.enabled !== false));
+
+    const second = harness();
+    ext(second.pi);
+    await second.handlers.session_start({}, second.ctx);
+    check('session_start rehydrates persisted watch', second.injected.some((i) => i.label === 'pending.md' && i.triggerTurn === false), second.injected.map((i) => i.label).join(','));
+    await second.handlers.session_shutdown({}, second.ctx);
+
+    const bad = harness();
+    ext(bad.pi);
+    await bad.commands.simplewatcher.handler('/tmp --definitely-not-a-flag', bad.ctx);
+    check('unknown flags are rejected', bad.notices.some((n) => n.k === 'error' && n.m.includes('unknown option')));
+  } finally {
+    process.chdir(savedCwd);
+    if (savedHome === undefined) delete process.env.HOME; else process.env.HOME = savedHome;
+    delete process.env.SIMPLEWATCHER_AGENT;
+    fs.rmSync(project, { recursive: true, force: true });
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);

@@ -3,6 +3,14 @@
 All notable changes to this project will be documented here. This project uses
 Semantic Versioning.
 
+## [0.2.0] - 2026-08-02
+
+### Added
+- Persistent watches via `--persist` (project `.pi/simplewatcher.json`) and `--persist --global` (`~/.pi/agent/simplewatcher.json`).
+- `/simplewatcher persisted` to list saved watches and config paths.
+- `/simplewatcher remove <path>` now stops the live watch and forgets persisted entries for the same resolved path.
+- Unknown `--flags` are rejected instead of being folded into the watch path.
+
 ## [0.1.0] - 2026-08-02
 
 Initial public plugin release.

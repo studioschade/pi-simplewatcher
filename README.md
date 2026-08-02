@@ -48,13 +48,17 @@ uses `active`, because incoming agent messages are meant to be seen promptly.
 | `/simplewatcher <path>` | Add/replace a passive watch |
 | `/simplewatcher <path> --active` | Add/replace an active watch |
 | `/simplewatcher <path> --passive` | Add/replace a passive watch explicitly |
-| `/simplewatcher remove <path>` | Stop watching a path |
+| `/simplewatcher <path> --active --persist` | Arm now and save project-locally |
+| `/simplewatcher <path> --active --persist --global` | Arm now and save globally |
+| `/simplewatcher persisted` | List persisted watches and config paths |
+| `/simplewatcher remove <path>` | Stop watching and forget persisted entries for that path |
 
 Examples:
 
 ```text
-/simplewatcher ~/Agents/_bus/inbox/fabricant --active
+/simplewatcher ~/Agents/_bus/inbox/fabricant --active --persist
 /simplewatcher /var/log/myapp.log --passive
+/simplewatcher persisted
 /simplewatcher remove ~/Agents/_bus/inbox/fabricant
 /simplewatcher
 ```
@@ -99,22 +103,21 @@ every session: a new session would have to read that instruction, decide to run
 it, and run it correctly.
 
 The mechanism belongs in the extension:
-
-- Manual `/simplewatcher <path>` watches last for the current session only.
+- Plain `/simplewatcher <path>` watches last for the current session only.
+- `--persist` saves the watch to `.pi/simplewatcher.json` in the current project;
+  add `--global` to save to `~/.pi/agent/simplewatcher.json` instead.
+- On `session_start`, persisted watches are loaded global-first then project, so
+  project config wins for the same resolved path.
 - The bundled default re-arms `$HOME/Agents/_bus/inbox/<agent>` on every
-  `session_start` when that path exists.
-- In `0.1.0` there is no general user-persisted watch config yet.
+  `session_start` when that path exists and was not already armed by persistence.
 
-To stop a live watch now: `/simplewatcher remove <path>`. To see what is armed:
-`/simplewatcher`. The bundled inbox default is controlled by
-`SIMPLEWATCHER_AGENT` / `PI_AGENT` / `AGENT_NAME` and only arms if the resolved
-inbox directory exists.
-
-Planned persistence: a future version will load watches from
-`.pi/simplewatcher.json` (project) and `~/.pi/agent/simplewatcher.json` (global)
-at `session_start`. When that ships, `/simplewatcher remove <path>` should both
-stop the live watch and remove/disable the persisted entry; manual deletion is
-removing that object from `watches[]` or setting `"enabled": false`.
+To see what is armed now: `/simplewatcher`. To see what will come back next
+session: `/simplewatcher persisted`. To stop and forget a watch:
+`/simplewatcher remove <path>` — that stops the live watch and removes persisted
+entries for the same resolved path from both project and global config. Manual
+deletion is removing that object from `watches[]` or setting `"enabled": false`.
+The bundled inbox default is controlled by `SIMPLEWATCHER_AGENT` / `PI_AGENT` /
+`AGENT_NAME` and only arms if the resolved inbox directory exists.
 
 ## Bundled default: agent inbox monitor
 

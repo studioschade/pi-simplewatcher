@@ -21,6 +21,7 @@ import path from "node:path";
 // the watch started after they arrived.
 
 type Mode = "active" | "passive";
+type Scope = "project" | "global";
 
 interface WatchTarget {
   targetPath: string;
@@ -34,13 +35,112 @@ interface WatchTarget {
   seen?: Set<string>;
 }
 
+interface PersistedWatch {
+  path: string;
+  mode: Mode;
+  enabled?: boolean;
+}
+
+interface PersistedConfig {
+  version: number;
+  watches: PersistedWatch[];
+}
+
 const DEBOUNCE_MS = 200;
 // Hard ceiling on injected payload size so a watched file/log can't dump an
 // unbounded blob into the context window. Override with SIMPLEWATCHER_MAX_BYTES.
 const MAX_INJECT_BYTES = Number(process.env.SIMPLEWATCHER_MAX_BYTES ?? 32 * 1024);
+const CONFIG_VERSION = 1;
 
 export default function (pi: ExtensionAPI) {
   const targets = new Map<string, WatchTarget>();
+
+  function homeDir() {
+    return process.env.HOME ?? "";
+  }
+
+  function expandPath(inputPath: string) {
+    if (inputPath === "~") return homeDir();
+    if (inputPath.startsWith("~/")) return path.join(homeDir(), inputPath.slice(2));
+    return path.resolve(inputPath);
+  }
+
+  function displayPath(resolved: string) {
+    const home = homeDir();
+    if (home && (resolved === home || resolved.startsWith(home + path.sep))) {
+      return `~${resolved.slice(home.length)}`;
+    }
+    return resolved;
+  }
+
+  function configPath(scope: Scope) {
+    return scope === "global"
+      ? path.join(homeDir(), ".pi", "agent", "simplewatcher.json")
+      : path.join(process.cwd(), ".pi", "simplewatcher.json");
+  }
+
+  function emptyConfig(): PersistedConfig {
+    return { version: CONFIG_VERSION, watches: [] };
+  }
+
+  function readConfig(scope: Scope, ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }): PersistedConfig {
+    const file = configPath(scope);
+    let raw: string;
+    try {
+      raw = fs.readFileSync(file, "utf8");
+    } catch {
+      return emptyConfig();
+    }
+    try {
+      const parsed = JSON.parse(raw) as Partial<PersistedConfig>;
+      return { version: CONFIG_VERSION, watches: Array.isArray(parsed.watches) ? parsed.watches : [] };
+    } catch (err) {
+      ctx.ui.notify(`simplewatcher: ignoring invalid ${scope} config ${file}: ${(err as Error).message}`, "warning");
+      return emptyConfig();
+    }
+  }
+
+  function writeConfig(scope: Scope, cfg: PersistedConfig) {
+    const file = configPath(scope);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${JSON.stringify(cfg, null, 2)}\n`);
+  }
+
+  function loadPersisted(ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }) {
+    // Global first, project second so project wins on the same resolved path.
+    const byResolved = new Map<string, PersistedWatch>();
+    for (const scope of ["global", "project"] as const) {
+      for (const watch of readConfig(scope, ctx).watches) {
+        if (!watch || typeof watch.path !== "string") continue;
+        if (watch.mode !== "active" && watch.mode !== "passive") continue;
+        if (watch.enabled === false) continue;
+        byResolved.set(expandPath(watch.path), watch);
+      }
+    }
+    return [...byResolved.values()];
+  }
+
+  function persistWatch(inputPath: string, mode: Mode, scope: Scope, ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }) {
+    const resolved = expandPath(inputPath);
+    const cfg = readConfig(scope, ctx);
+    cfg.watches = cfg.watches.filter((watch) => expandPath(watch.path) !== resolved);
+    cfg.watches.push({ path: displayPath(resolved), mode, enabled: true });
+    writeConfig(scope, cfg);
+    ctx.ui.notify(`simplewatcher: persisted ${displayPath(resolved)} (${scope}, ${mode}) in ${configPath(scope)}`, "info");
+  }
+
+  function forgetPersisted(resolved: string, ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }) {
+    let removed = 0;
+    for (const scope of ["global", "project"] as const) {
+      const cfg = readConfig(scope, ctx);
+      const next = cfg.watches.filter((watch) => expandPath(watch.path) !== resolved);
+      if (next.length !== cfg.watches.length) {
+        removed += cfg.watches.length - next.length;
+        writeConfig(scope, { ...cfg, watches: next });
+      }
+    }
+    return removed;
+  }
 
   function inject(targetPath: string, mode: Mode, label: string, content: string) {
     if (!content.trim()) return;
@@ -116,7 +216,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   function addWatch(targetPath: string, mode: Mode, ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }) {
-    const resolved = path.resolve(targetPath);
+    const resolved = expandPath(targetPath);
     const existing = targets.get(resolved);
     // Carry already-injected state across a RE-ARM of the same path. Dropping it
     // replays the entire backlog, because `session_start` fires again on a MODEL
@@ -144,7 +244,7 @@ export default function (pi: ExtensionAPI) {
       stat = fs.statSync(resolved);
     } catch {
       ctx.ui.notify(`simplewatcher: path does not exist: ${resolved}`, "error");
-      return;
+      return false;
     }
 
     const isDir = stat.isDirectory();
@@ -183,10 +283,11 @@ export default function (pi: ExtensionAPI) {
     }
 
     ctx.ui.notify(`simplewatcher: watching ${resolved} (${isDir ? "dir" : "file"}, ${mode})`, "info");
+    return true;
   }
 
   function removeWatch(targetPath: string, ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }) {
-    const resolved = path.resolve(targetPath);
+    const resolved = expandPath(targetPath);
     const t = targets.get(resolved);
     if (!t) {
       ctx.ui.notify(`simplewatcher: not watching ${resolved}`, "warning");
@@ -199,7 +300,11 @@ export default function (pi: ExtensionAPI) {
     }
     if (t.debounce) clearTimeout(t.debounce);
     targets.delete(resolved);
-    ctx.ui.notify(`simplewatcher: stopped watching ${resolved}`, "info");
+    const forgotten = forgetPersisted(resolved, ctx);
+    ctx.ui.notify(
+      `simplewatcher: stopped watching ${resolved}${forgotten ? `; removed ${forgotten} persisted entr${forgotten === 1 ? "y" : "ies"}` : ""}`,
+      "info",
+    );
   }
 
   function stopAll() {
@@ -214,16 +319,19 @@ export default function (pi: ExtensionAPI) {
     targets.clear();
   }
 
-  // Default: watch this agent's bus inbox in active mode from the moment a
-  // session starts, so replies surface immediately instead of sitting unread
-  // until someone remembers to run `agent-inbox`. The agent name is
-  // parameterized now (SIMPLEWATCHER_AGENT, then PI_AGENT/AGENT_NAME), with a
-  // fabricant fallback so this repo remains the canonical source and sibling
-  // agents can replace their patched copies with a symlink/env override.
+  // Re-arm persisted watches first, then the env-derived default bus inbox if
+  // the same resolved path was not already armed by config. The default agent
+  // name is parameterized (SIMPLEWATCHER_AGENT, then PI_AGENT/AGENT_NAME), with
+  // a fabricant fallback for backward compatibility.
   pi.on("session_start", async (_event, ctx) => {
+    const armed = new Set<string>();
+    for (const watch of loadPersisted(ctx)) {
+      if (addWatch(watch.path, watch.mode, ctx)) armed.add(expandPath(watch.path));
+    }
+
     const agent = process.env.SIMPLEWATCHER_AGENT ?? process.env.PI_AGENT ?? process.env.AGENT_NAME ?? "fabricant";
-    const busInbox = path.join(process.env.HOME ?? "", "Agents", "_bus", "inbox", agent);
-    if (fs.existsSync(busInbox)) {
+    const busInbox = path.join(homeDir(), "Agents", "_bus", "inbox", agent);
+    if (fs.existsSync(busInbox) && !armed.has(path.resolve(busInbox))) {
       addWatch(busInbox, "active", ctx);
     }
   });
@@ -233,7 +341,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("simplewatcher", {
-    description: "Watch a file or directory, injecting new content into context. /simplewatcher <path> [--active|--passive], /simplewatcher remove <path>, /simplewatcher (list)",
+    description: "Watch a file or directory, injecting new content into context. /simplewatcher <path> [--active|--passive] [--persist [--global]], /simplewatcher remove <path>, /simplewatcher persisted, /simplewatcher (list)",
     handler: async (args, ctx) => {
       const trimmed = (args || "").trim();
 
@@ -249,6 +357,16 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
+      if (trimmed === "persisted") {
+        const blocks = (["project", "global"] as const).map((scope) => {
+          const cfg = readConfig(scope, ctx);
+          const lines = cfg.watches.map((w) => `${w.path} (${w.mode}${w.enabled === false ? ", disabled" : ""})`);
+          return `${scope}: ${configPath(scope)}\n${lines.length ? lines.join("\n") : "  (none)"}`;
+        });
+        ctx.ui.notify(`simplewatcher persisted watches:\n${blocks.join("\n")}`, "info");
+        return;
+      }
+
       const removeMatch = /^remove\s+(.+)$/.exec(trimmed);
       if (removeMatch) {
         removeWatch(removeMatch[1].trim(), ctx);
@@ -257,18 +375,28 @@ export default function (pi: ExtensionAPI) {
 
       const parts = trimmed.split(/\s+/);
       let mode: Mode = "passive";
+      let persist = false;
+      let scope: Scope = "project";
       const pathParts: string[] = [];
       for (const p of parts) {
         if (p === "--active") mode = "active";
         else if (p === "--passive") mode = "passive";
-        else pathParts.push(p);
+        else if (p === "--persist") persist = true;
+        else if (p === "--global") scope = "global";
+        else if (p === "--local") scope = "project";
+        else if (p.startsWith("--")) {
+          ctx.ui.notify(`simplewatcher: unknown option ${p}. Usage: /simplewatcher <path> [--active|--passive] [--persist [--global]]`, "error");
+          return;
+        } else pathParts.push(p);
       }
       const targetPath = pathParts.join(" ");
       if (!targetPath) {
-        ctx.ui.notify("simplewatcher: usage: /simplewatcher <path> [--active|--passive]", "error");
+        ctx.ui.notify("simplewatcher: usage: /simplewatcher <path> [--active|--passive] [--persist [--global]]", "error");
         return;
       }
-      addWatch(targetPath, mode, ctx);
+      if (addWatch(targetPath, mode, ctx) && persist) {
+        persistWatch(targetPath, mode, scope, ctx);
+      }
     },
   });
 }
