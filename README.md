@@ -90,6 +90,32 @@ ln -s /path/to/simplewatcher/src/index.ts .pi/extensions/simplewatcher.ts       
 
 To try it ad hoc without installing: `pi -e /path/to/simplewatcher/src/index.ts`
 
+## `AGENTS.md` vs watcher persistence
+
+`AGENTS.md` is policy, not mechanism. It is the right place for rules like
+“handle inbox messages when they arrive,” “don’t ack an ack,” and “ask before
+outward actions.” It is not a reliable way to make a filesystem watch come back
+every session: a new session would have to read that instruction, decide to run
+it, and run it correctly.
+
+The mechanism belongs in the extension:
+
+- Manual `/simplewatcher <path>` watches last for the current session only.
+- The bundled default re-arms `$HOME/Agents/_bus/inbox/<agent>` on every
+  `session_start` when that path exists.
+- In `0.1.0` there is no general user-persisted watch config yet.
+
+To stop a live watch now: `/simplewatcher remove <path>`. To see what is armed:
+`/simplewatcher`. The bundled inbox default is controlled by
+`SIMPLEWATCHER_AGENT` / `PI_AGENT` / `AGENT_NAME` and only arms if the resolved
+inbox directory exists.
+
+Planned persistence: a future version will load watches from
+`.pi/simplewatcher.json` (project) and `~/.pi/agent/simplewatcher.json` (global)
+at `session_start`. When that ships, `/simplewatcher remove <path>` should both
+stop the live watch and remove/disable the persisted entry; manual deletion is
+removing that object from `watches[]` or setting `"enabled": false`.
+
 ## Bundled default: agent inbox monitor
 
 On `session_start`, the extension arms one default watch:
