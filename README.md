@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="simplewatcher — a pi extension that watches files and directories and injects new content into the live session the moment it appears, instead of the agent waiting for the next human prompt to check an inbox.">
+  <img src="./assets/readme/hero.svg" width="100%" alt="pi-simplewatcher — a pi extension that watches files and directories and injects new content into the live session the moment it appears, instead of the agent waiting for the next human prompt to check an inbox.">
 </p>
 
-# simplewatcher
+# pi-simplewatcher
 
 A small [pi](https://github.com/earendil-works/pi-coding-agent) extension that
 watches files and directories and injects new content into the current session

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg"
      width="1200" height="360" viewBox="0 0 1200 360"
      role="img" aria-labelledby="title desc">
-  <title id="title">simplewatcher</title>
+  <title id="title">pi-simplewatcher</title>
   <desc id="desc">A pi extension that watches files and directories and injects new content into the live session the moment it appears, instead of the agent waiting for the next human prompt to check an inbox.</desc>
 
   <defs>
@@ -17,7 +17,7 @@
   <g id="title-block" transform="translate(56 56)">
     <text x="0" y="0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" letter-spacing="2" fill="#43d3c0">PI EXTENSION &#183; LIVE FILE WATCH</text>
 
-    <text x="0" y="58" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="52" font-weight="700" fill="#f4f2ee">simplewatcher</text>
+    <text x="0" y="58" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="52" font-weight="700" fill="#f4f2ee">pi-simplewatcher</text>
 
     <rect x="2" y="76" width="64" height="4" rx="2" fill="url(#accentLine)"/>
 
@@ -43,7 +43,7 @@
     <rect x="338" y="44" width="82" height="22" rx="4" fill="#3a3f45"/>
     <text x="348" y="59" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#b9c4d0">noticed</text>
 
-    <text x="24" y="100" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="#43d3c0">simplewatcher</text>
+    <text x="24" y="100" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="#43d3c0">pi-simplewatcher</text>
     <rect x="24" y="110" width="396" height="22" rx="4" fill="#1c1d20"/>
     <rect x="52" y="110" width="368" height="22" rx="4" fill="url(#accentLine)" opacity="0.85"/>
     <text x="62" y="125" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#0d1416">injected + turn triggered the moment it lands&#8230;</text>
