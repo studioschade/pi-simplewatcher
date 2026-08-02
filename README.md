@@ -59,6 +59,22 @@ Examples:
 /simplewatcher
 ```
 
+## Install
+
+This repo follows the pi package layout: `package.json` is present and
+`pi.extensions` points at `./src`, with the entrypoint at `src/index.ts`.
+
+For a manual install, symlink the entrypoint into pi's extension auto-discovery
+path so the repo stays the single source of truth:
+
+```bash
+ln -s /path/to/simplewatcher/src/index.ts ~/.pi/agent/extensions/simplewatcher.ts   # global
+# or
+ln -s /path/to/simplewatcher/src/index.ts .pi/extensions/simplewatcher.ts           # project-local
+```
+
+To try it ad hoc without installing: `pi -e /path/to/simplewatcher/src/index.ts`
+
 ## Bundled default: agent inbox monitor
 
 On `session_start`, the extension arms one default watch:
@@ -118,8 +134,9 @@ agent’s own guardrails.
 
 ## Development
 
-Source of truth for this project is `index.ts` in this repo. Keep the deployed
-pi extension copy in sync when changing behavior.
+Source of truth for this project is `src/index.ts`. Keep the deployed pi
+extension entrypoint pointed at that file (symlink preferred) when changing
+behavior.
 
 Useful manual smoke checks:
 

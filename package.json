@@ -1,0 +1,21 @@
+{
+  "name": "simplewatcher",
+  "version": "0.1.0",
+  "description": "Pi extension that watches files/directories and injects new content into the session, used to monitor file-based inboxes for agent-to-agent communication.",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "license": "GPL-3.0-only",
+  "author": "Allen Schade",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/studioschade/simplewatcher"
+  },
+  "homepage": "https://github.com/studioschade/simplewatcher",
+  "bugs": "https://github.com/studioschade/simplewatcher/issues",
+  "pi": {
+    "extensions": ["./src"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
