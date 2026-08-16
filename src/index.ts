@@ -44,6 +44,10 @@ interface PersistedWatch {
 interface PersistedConfig {
   version: number;
   watches: PersistedWatch[];
+  // Master on/off switch (/simplewatcher disable). Lives in the GLOBAL config
+  // only; absent === enabled (matches simplesay's convention). Distinct from
+  // the per-watch `enabled` on PersistedWatch.
+  enabled?: boolean;
 }
 
 const DEBOUNCE_MS = 200;
@@ -54,6 +58,11 @@ const CONFIG_VERSION = 1;
 
 export default function (pi: ExtensionAPI) {
   const targets = new Map<string, WatchTarget>();
+
+  // Master switch: /simplewatcher disable stops all live watches, refuses new
+  // ones, and persists across sessions (lives in the global config). Mirrors
+  // simplesay's /simplesay disable.
+  let enabled = loadMasterEnabled();
 
   function homeDir() {
     return process.env.HOME ?? "";
@@ -93,7 +102,7 @@ export default function (pi: ExtensionAPI) {
     }
     try {
       const parsed = JSON.parse(raw) as Partial<PersistedConfig>;
-      return { version: CONFIG_VERSION, watches: Array.isArray(parsed.watches) ? parsed.watches : [] };
+      return { version: CONFIG_VERSION, watches: Array.isArray(parsed.watches) ? parsed.watches : [], enabled: parsed.enabled };
     } catch (err) {
       ctx.ui.notify(`simplewatcher: ignoring invalid ${scope} config ${file}: ${(err as Error).message}`, "warning");
       return emptyConfig();
@@ -104,6 +113,21 @@ export default function (pi: ExtensionAPI) {
     const file = configPath(scope);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, `${JSON.stringify(cfg, null, 2)}\n`);
+  }
+
+  // Master switch persistence — global config only. Absent key === enabled.
+  function loadMasterEnabled(): boolean {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(configPath("global"), "utf8")) as Partial<PersistedConfig>;
+      return parsed.enabled !== false;
+    } catch {
+      return true;
+    }
+  }
+  function saveMasterEnabled(value: boolean, ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }) {
+    const cfg = readConfig("global", ctx);
+    cfg.enabled = value;
+    writeConfig("global", cfg);
   }
 
   function loadPersisted(ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }) {
@@ -216,6 +240,10 @@ export default function (pi: ExtensionAPI) {
   }
 
   function addWatch(targetPath: string, mode: Mode, ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }) {
+    if (!enabled) {
+      ctx.ui.notify("simplewatcher is disabled — run /simplewatcher enable first", "warning");
+      return false;
+    }
     const resolved = expandPath(targetPath);
     const existing = targets.get(resolved);
     // Carry already-injected state across a RE-ARM of the same path. Dropping it
@@ -323,7 +351,10 @@ export default function (pi: ExtensionAPI) {
   // the same resolved path was not already armed by config. The default agent
   // name is parameterized (SIMPLEWATCHER_AGENT, then PI_AGENT/AGENT_NAME), with
   // a fabricant fallback for backward compatibility.
-  pi.on("session_start", async (_event, ctx) => {
+  // Arm persisted watches + the env-derived default bus inbox. Shared by
+  // session_start and /simplewatcher enable so re-enabling re-arms identically
+  // to a fresh session.
+  function armDefaults(ctx: { ui: { notify: (m: string, k: "info" | "warning" | "error") => void } }) {
     const armed = new Set<string>();
     for (const watch of loadPersisted(ctx)) {
       if (addWatch(watch.path, watch.mode, ctx)) armed.add(expandPath(watch.path));
@@ -334,6 +365,11 @@ export default function (pi: ExtensionAPI) {
     if (fs.existsSync(busInbox) && !armed.has(path.resolve(busInbox))) {
       addWatch(busInbox, "active", ctx);
     }
+  }
+
+  pi.on("session_start", async (_event, ctx) => {
+    if (!enabled) return; // disabled: don't arm (and don't re-arm on model change)
+    armDefaults(ctx);
   });
 
   pi.on("session_shutdown", async () => {
@@ -341,11 +377,15 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("simplewatcher", {
-    description: "Watch a file or directory, injecting new content into context. /simplewatcher <path> [--active|--passive] [--persist [--global]], /simplewatcher remove <path>, /simplewatcher persisted, /simplewatcher (list)",
+    description: "Watch a file or directory, injecting new content into context. /simplewatcher <path> [--active|--passive] [--persist [--global]], /simplewatcher remove <path>, /simplewatcher persisted, /simplewatcher enable|disable, /simplewatcher (list)",
     handler: async (args, ctx) => {
       const trimmed = (args || "").trim();
 
       if (!trimmed) {
+        if (!enabled) {
+          ctx.ui.notify("simplewatcher: DISABLED — /simplewatcher enable to resume", "info");
+          return;
+        }
         if (targets.size === 0) {
           ctx.ui.notify("simplewatcher: no active watches", "info");
           return;
@@ -364,6 +404,24 @@ export default function (pi: ExtensionAPI) {
           return `${scope}: ${configPath(scope)}\n${lines.length ? lines.join("\n") : "  (none)"}`;
         });
         ctx.ui.notify(`simplewatcher persisted watches:\n${blocks.join("\n")}`, "info");
+        return;
+      }
+
+      if (trimmed === "disable" || trimmed === "off") {
+        if (!enabled) { ctx.ui.notify("simplewatcher already disabled", "info"); return; }
+        enabled = false;
+        saveMasterEnabled(false, ctx);
+        stopAll();
+        ctx.ui.notify("simplewatcher disabled (saved) — all watches stopped; /simplewatcher enable to resume", "info");
+        return;
+      }
+      if (trimmed === "enable" || trimmed === "on") {
+        if (enabled) { ctx.ui.notify("simplewatcher already enabled", "info"); return; }
+        enabled = true;
+        saveMasterEnabled(true, ctx);
+        stopAll(); // clear any partial state before re-arming
+        armDefaults(ctx);
+        ctx.ui.notify("simplewatcher enabled (saved) — watches re-armed", "info");
         return;
       }
 

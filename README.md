@@ -56,6 +56,8 @@ uses `active`, because incoming agent messages are meant to be seen promptly.
 | `/simplewatcher <path> --active --persist --global` | Arm now and save globally |
 | `/simplewatcher persisted` | List persisted watches and config paths |
 | `/simplewatcher remove <path>` | Stop watching and forget persisted entries for that path |
+| `/simplewatcher disable` (`off`) | Master switch: stop all live watches, refuse new ones, persist across sessions |
+| `/simplewatcher enable` (`on`) | Re-arm watches after a disable; persists across sessions |
 
 Examples:
 
@@ -131,6 +133,15 @@ entries for the same resolved path from both project and global config. Manual
 deletion is removing that object from `watches[]` or setting `"enabled": false`.
 The bundled inbox default is controlled by `SIMPLEWATCHER_AGENT` / `PI_AGENT` /
 `AGENT_NAME` and only arms if the resolved inbox directory exists.
+
+**Master switch:** `/simplewatcher disable` (or `off`) stops every live watch,
+refuses new ones for the rest of the session, and persists to the global config
+(`"enabled": false` at the top level of `~/.pi/agent/simplewatcher.json`) so a
+fresh session starts disabled too — the bundled inbox default and all persisted
+watches stay disarmed until `/simplewatcher enable` (`on`) re-arms them. It's
+the same shape as simplesay's `/simplesay disable`: silence the extension
+without uninstalling it. Per-watch `enabled` (above) still applies on top — a
+watch must be both master-enabled and per-watch-enabled to arm.
 
 ## Bundled default: agent inbox monitor
 

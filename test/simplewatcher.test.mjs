@@ -129,5 +129,65 @@ const baseFiles = { 'a.md': 'pending a\n', 'b.md': 'pending b\n', 'c.md': 'pendi
   }
 }
 
+// --- master switch: /simplewatcher disable stops all watches + persists ---
+{
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'simplewatcher-master-'));
+  const inbox = path.join(home, 'Agents/_bus/inbox/fabricant');
+  fs.mkdirSync(inbox, { recursive: true });
+  fs.writeFileSync(path.join(inbox, 'pending.md'), 'pending boot\n');
+  const savedHome = process.env.HOME;
+  process.env.HOME = home;
+  delete process.env.SIMPLEWATCHER_AGENT;
+  try {
+    // Session 1: boot arms the default inbox watch, then disable tears it down.
+    const a = harness();
+    ext(a.pi);
+    await a.handlers.session_start({}, a.ctx);
+    const armedBoot = a.injected.splice(0).some((i) => i.label === 'pending.md');
+    await a.commands.simplewatcher.handler('disable', a.ctx);
+    const disabledNotice = a.notices.some((n) => /disabled/.test(n.m));
+    // A live arrival while disabled must NOT inject (watcher is closed).
+    fs.writeFileSync(path.join(inbox, 'live.md'), 'live while disabled\n');
+    await new Promise((r) => setTimeout(r, 700));
+    const liveWhileDisabled = a.injected.splice(0);
+    // addWatch while disabled is refused.
+    await a.commands.simplewatcher.handler('/tmp', a.ctx);
+    const refused = a.notices.some((n) => n.k === 'warning' && /disabled.*enable first/.test(n.m));
+    // Bare status reflects DISABLED.
+    a.notices.length = 0;
+    await a.commands.simplewatcher.handler('', a.ctx);
+    const statusDisabled = a.notices.some((n) => /DISABLED/.test(n.m));
+    await a.handlers.session_shutdown({}, a.ctx);
+
+    // Session 2: a fresh extension instance loads the persisted disabled state
+    // and must NOT arm on session_start.
+    const b = harness();
+    ext(b.pi);
+    await b.handlers.session_start({}, b.ctx);
+    const bootAfterDisabled = b.injected.splice(0);
+    // Re-enable mid-session re-arms the default inbox watch.
+    await b.commands.simplewatcher.handler('enable', b.ctx);
+    const enableNotice = b.notices.some((n) => /enabled.*re-armed/.test(n.m));
+    // After enable, a new live arrival injects again.
+    fs.writeFileSync(path.join(inbox, 'live2.md'), 'live after enable\n');
+    await new Promise((r) => setTimeout(r, 700));
+    const liveAfterEnable = b.injected.splice(0);
+    await b.handlers.session_shutdown({}, b.ctx);
+
+    check('disable stops live watches (no injection while disabled)', armedBoot && liveWhileDisabled.length === 0, `boot=${armedBoot} live=${liveWhileDisabled.length}`);
+    check('addWatch refused while disabled', refused, JSON.stringify(a.notices.map((n) => n.m)));
+    check('bare status shows DISABLED', statusDisabled);
+    check('disabled persists across sessions (no boot injection)', bootAfterDisabled.length === 0, `${bootAfterDisabled.length} injections`);
+    check('enable re-arms watches', enableNotice && liveAfterEnable.some((i) => i.label === 'live2.md'), `notice=${enableNotice} live=${liveAfterEnable.map((i) => i.label).join(',')}`);
+
+    // The global config records the final enabled=true state.
+    const cfg = JSON.parse(fs.readFileSync(path.join(home, '.pi/agent/simplewatcher.json'), 'utf8'));
+    check('master switch persisted to global config', cfg.enabled === true, JSON.stringify(cfg.enabled));
+  } finally {
+    if (savedHome === undefined) delete process.env.HOME; else process.env.HOME = savedHome;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

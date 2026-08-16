@@ -3,6 +3,20 @@
 All notable changes to this project will be documented here. This project uses
 Semantic Versioning.
 
+## [0.3.0] - 2026-08-16
+
+### Added
+- **Master on/off switch: `/simplewatcher disable` / `/simplewatcher enable`
+  (`off`/`on` also accepted).** `disable` stops every live watch, refuses new
+  ones for the rest of the session, and persists to the global config
+  (`"enabled": false` at the top level of `~/.pi/agent/simplewatcher.json`) so a
+  fresh session starts disabled too — the bundled inbox default and all
+  persisted watches stay disarmed until `enable` re-arms them identically to a
+  fresh `session_start`. Mirrors simplesay's `/simplesay disable`: silence the
+  extension without uninstalling it. Bare `/simplewatcher` now reports DISABLED
+  when off. Per-watch `enabled` still applies on top — a watch must be both
+  master-enabled and per-watch-enabled to arm.
+
 ## README hero (2026-08-02)
 
 - **New `assets/readme/hero.svg`** — the real differentiator (injects new file

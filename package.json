@@ -1,6 +1,6 @@
 {
   "name": "pi-simplewatcher",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Pi extension that watches files/directories and injects new content into the session, used to monitor file-based inboxes for agent-to-agent communication.",
   "type": "module",
   "keywords": [
